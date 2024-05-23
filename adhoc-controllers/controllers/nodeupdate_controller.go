@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -73,12 +72,12 @@ func (r *NodeUpdateReconciler) Reconcile(_ context.Context, req ctrl.Request) (c
 		})
 
 		if err != nil {
-			return ctrl.Result{}, errors.Errorf("failed to create nodeUpdateScope: %+v", err)
+			return ctrl.Result{}, fmt.Errorf("failed to create nodeUpdateScope: %w", err)
 		}
 
 		instance, err := nodeUpdateScope.Cloud.GetPVMInstanceDetails(nodeUpdateScope.InstanceId)
 		if err != nil {
-			klog.Infof("Unable to fetch Instance Details %v", err)
+			klog.Errorf("Unable to fetch instance details: %v", err)
 			return ctrl.Result{}, nil
 		}
 
@@ -93,7 +92,7 @@ func (r *NodeUpdateReconciler) Reconcile(_ context.Context, req ctrl.Request) (c
 						err := r.getOrUpdate(nodeUpdateScope)
 						if err != nil {
 							klog.Infof("unable to update instance StoragePoolAffinity %v", err)
-							return ctrl.Result{}, errors.Wrapf(err, "failed to reconcile VSI for IBMPowerVSMachine %s/%s", node.Namespace, node.Name)
+							return ctrl.Result{}, fmt.Errorf("failed to reconcile VSI for IBMPowerVSMachine %s/%s. err: %w", node.Namespace, node.Name, err)
 						}
 					}
 				default:
@@ -107,10 +106,7 @@ func (r *NodeUpdateReconciler) Reconcile(_ context.Context, req ctrl.Request) (c
 }
 
 func (r *NodeUpdateReconciler) getOrUpdate(scope *cloud.NodeUpdateScope) error {
-	if err := scope.Cloud.UpdateStoragePoolAffinity(scope.InstanceId); err != nil {
-		return err
-	}
-	return nil
+	return scope.Cloud.UpdateStoragePoolAffinity(scope.InstanceId)
 }
 
 // SetupWithManager sets up the controller with the Manager.
