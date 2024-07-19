@@ -78,7 +78,7 @@ func (p *powerVSCloud) GetPVMInstanceDetails(instanceID string) (*models.PVMInst
 func (p *powerVSCloud) UpdateStoragePoolAffinity(instanceID string) error {
 	_, err := p.pvmInstancesClient.Update(instanceID,
 		&models.PVMInstanceUpdate{
-			StoragePoolAffinity: ptr.To[bool](StoragePoolAffinity),
+			StoragePoolAffinity: ptr.To(StoragePoolAffinity),
 		})
 	return err
 }

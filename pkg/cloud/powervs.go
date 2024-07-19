@@ -77,7 +77,7 @@ func newPowerVSCloud(cloudInstanceID, zone string, debug bool) (Cloud, error) {
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("errored while getting the Power VS service instance with ID: %s, err: %v", cloudInstanceID, err)
+		return nil, fmt.Errorf("errored while getting the PowerVS service instance with ID: %s, err: %v", cloudInstanceID, err)
 	}
 
 	piOptions := ibmpisession.IBMPIOptions{Authenticator: authenticator, Debug: debug, UserAccount: *resourceInstance.AccountID, Zone: zone}
@@ -86,13 +86,9 @@ func newPowerVSCloud(cloudInstanceID, zone string, debug bool) (Cloud, error) {
 		return nil, err
 	}
 
-	backgroundContext := context.Background()
-	volClient := instance.NewIBMPIVolumeClient(backgroundContext, piSession, cloudInstanceID)
-	pvmInstancesClient := instance.NewIBMPIInstanceClient(backgroundContext, piSession, cloudInstanceID)
-
 	return &powerVSCloud{
-		pvmInstancesClient: pvmInstancesClient,
-		volClient:          volClient,
+		pvmInstancesClient: instance.NewIBMPIInstanceClient(context.Background(), piSession, cloudInstanceID),
+		volClient:          instance.NewIBMPIVolumeClient(context.Background(), piSession, cloudInstanceID),
 	}, nil
 }
 
@@ -141,7 +137,7 @@ func (p *powerVSCloud) CreateDisk(volumeName string, diskOptions *DiskOptions) (
 
 	dataVolume := &models.CreateDataVolume{
 		Name:      &volumeName,
-		Size:      ptr.To[float64](float64(capacityGiB)),
+		Size:      ptr.To(float64(capacityGiB)),
 		Shareable: &diskOptions.Shareable,
 		DiskType:  volumeType,
 	}

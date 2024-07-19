@@ -181,9 +181,8 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		}
 	}
 
-	shareable := isShareableVolume(volCaps)
 	opts := &cloud.DiskOptions{
-		Shareable:     shareable,
+		Shareable:     isShareableVolume(volCaps),
 		CapacityBytes: volSizeBytes,
 		VolumeType:    volumeType,
 	}
