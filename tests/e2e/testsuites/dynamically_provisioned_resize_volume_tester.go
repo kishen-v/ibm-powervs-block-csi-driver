@@ -24,12 +24,13 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clientset "k8s.io/client-go/kubernetes"
 	"k8s.io/kubernetes/test/e2e/framework"
+
 	"sigs.k8s.io/ibm-powervs-block-csi-driver/pkg/util"
 	"sigs.k8s.io/ibm-powervs-block-csi-driver/tests/e2e/driver"
 
 	. "github.com/onsi/ginkgo/v2"
-	clientset "k8s.io/client-go/kubernetes"
 )
 
 // DynamicallyProvisionedResizeVolumeTest will provision required StorageClass(es), PVC(s) and Pod(s)
@@ -77,10 +78,9 @@ func (t *DynamicallyProvisionedResizeVolumeTest) Run(client clientset.Interface,
 	By("checking that the pods is running")
 	tpod.WaitForSuccess()
 	defer tpod.Cleanup()
-
 }
 
-// WaitForPvToResize waiting for pvc size to be resized to desired size
+// WaitForPvToResize waiting for pvc size to be resized to desired size.
 func WaitForPvToResize(c clientset.Interface, ns *v1.Namespace, pvName string, desiredSize resource.Quantity, timeout time.Duration, interval time.Duration) error {
 	By(fmt.Sprintf("Waiting up to %v for pv in namespace %q to be complete", timeout, ns.Name))
 	for start := time.Now(); time.Since(start) < timeout; time.Sleep(interval) {

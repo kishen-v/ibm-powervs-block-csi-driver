@@ -23,6 +23,7 @@ import (
 	storagev1 "k8s.io/api/storage/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	powervscsidriver "sigs.k8s.io/ibm-powervs-block-csi-driver/pkg/driver"
 )
 
@@ -30,12 +31,12 @@ const (
 	True = "true"
 )
 
-// Implement DynamicPVTestDriver interface
+// Implement DynamicPVTestDriver interface.
 type powervsCSIDriver struct {
 	driverName string
 }
 
-// InitPowervsCSIDriver returns powervsCSIDriver that implements DynamicPVTestDriver interface
+// InitPowervsCSIDriver returns powervsCSIDriver that implements DynamicPVTestDriver interface.
 func InitPowervsCSIDriver() PVTestDriver {
 	return &powervsCSIDriver{
 		driverName: powervscsidriver.DriverName,
@@ -97,7 +98,7 @@ func (d *powervsCSIDriver) GetPersistentVolume(volumeID string, fsType string, s
 	}
 }
 
-// GetParameters returns the parameters specific for this driver
+// GetParameters returns the parameters specific for this driver.
 func GetParameters(volumeType string, fsType string) map[string]string {
 	parameters := map[string]string{
 		"type":                      volumeType,
