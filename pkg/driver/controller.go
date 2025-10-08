@@ -62,13 +62,13 @@ type controllerService struct {
 
 // Provider holds information from the cloud provider.
 type Provider struct {
-	// PowerVSCloudInstanceID is IBM Power VS service instance id
+	// PowerVSCloudInstanceID is IBM PowerVS service instance id
 	PowerVSCloudInstanceID string `gcfg:"powerVSCloudInstanceID"`
-	// PowerVSZone is IBM Power VS service zone
+	// PowerVSZone is IBM PowerVS service zone
 	PowerVSZone string `gcfg:"powerVSZone"`
 }
 
-// CloudConfig is the ibm cloud provider config data.
+// CloudConfig is the IBM Cloud provider config data.
 type CloudConfig struct {
 	// [provider] section
 	Prov Provider `gcfg:"provider"`
@@ -103,24 +103,22 @@ func newControllerService(driverOptions *Options) controllerService {
 		if err := gcfg.FatalOnly(gcfg.ReadInto(&cloudConfig, config)); err != nil {
 			klog.Fatalf("Failed to read cloud config: %v", err)
 		}
-		cloudInstanceId = cloudConfig.Prov.PowerVSCloudInstanceID
-		zone = cloudConfig.Prov.PowerVSZone
-		if cloudInstanceId == "" || zone == "" {
+		if cloudConfig.Prov.PowerVSCloudInstanceID == "" || cloudConfig.Prov.PowerVSZone == "" {
 			klog.Fatalf("Failed to read cloud config: %v", status.Errorf(codes.NotFound, "cloud instance id or zone is empty"))
 		}
+		cloudInstanceId, zone = cloudConfig.Prov.PowerVSCloudInstanceID, cloudConfig.Prov.PowerVSZone
 	} else {
 		klog.V(4).Infof("retrieving node info from metadata service")
 		metadata, err := cloud.NewMetadataService(cloud.DefaultKubernetesAPIClient, driverOptions.kubeconfig)
 		if err != nil {
 			klog.Fatalf("Failed to get metadata service: %v", err)
 		}
-		cloudInstanceId = metadata.GetCloudInstanceId()
-		zone = metadata.GetZone()
+		cloudInstanceId, zone = metadata.GetCloudInstanceId(), metadata.GetZone()
 	}
 
 	c, err := NewPowerVSCloudFunc(cloudInstanceId, zone, driverOptions.debug)
 	if err != nil {
-		klog.Fatalf("Failed to get powervs cloud: %v", err)
+		klog.Fatalf("Failed to get PowerVS cloud: %v", err)
 	}
 
 	return controllerService{

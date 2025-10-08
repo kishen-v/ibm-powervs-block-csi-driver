@@ -24,14 +24,18 @@ import (
 
 // PowerVS volume types.
 const (
-	VolumeTypeTier1 = "tier1"
-	VolumeTypeTier3 = "tier3"
+	VolumeTypeTier1  = "tier1"
+	VolumeTypeTier3  = "tier3"
+	VolumeTypeTier5k = "tier5k"
+	VolumeTypeTier0  = "tier0"
 )
 
 var (
 	ValidVolumeTypes = []string{
 		VolumeTypeTier1,
 		VolumeTypeTier3,
+		VolumeTypeTier5k,
+		VolumeTypeTier0,
 	}
 )
 

@@ -53,7 +53,7 @@ func GetInstanceInfoFromProviderID(clientset kubernetes.Interface, nodeName stri
 	// get node with k8s API
 	node, err := clientset.CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("error getting Node %s: %v", nodeName, err)
+		return nil, fmt.Errorf("error while retrieving node object through kubeclient %s: %v", nodeName, err)
 	}
 
 	if node.Spec.ProviderID != "" {

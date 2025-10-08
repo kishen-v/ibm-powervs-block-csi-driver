@@ -100,7 +100,7 @@ func newNodeService(driverOptions *Options) nodeService {
 
 	pvsCloud, err := NewPowerVSCloudFunc(cloudInstanceId, zone, driverOptions.debug)
 	if err != nil {
-		klog.Fatalf("Failed to get powervs cloud: %v", err)
+		klog.Fatalf("Failed to get PowerVS cloud: %v", err)
 	}
 
 	return nodeService{
