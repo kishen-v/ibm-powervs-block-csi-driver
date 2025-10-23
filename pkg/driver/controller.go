@@ -20,11 +20,12 @@ import (
 	"context"
 	"os"
 	"strings"
+	"time"
 
-	csi "github.com/container-storage-interface/spec/lib/go/csi"
+	"github.com/container-storage-interface/spec/lib/go/csi"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	gcfg "gopkg.in/gcfg.v1"
+	"gopkg.in/gcfg.v1"
 
 	"k8s.io/klog/v2"
 
@@ -129,6 +130,7 @@ func newControllerService(driverOptions *Options) controllerService {
 
 func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVolumeRequest) (*csi.CreateVolumeResponse, error) {
 	klog.V(4).Infof("CreateVolume: called with args %+v", req)
+	start := time.Now()
 	volName := req.GetName()
 	if volName == "" {
 		return nil, status.Error(codes.InvalidArgument, "Volume name not provided")
@@ -198,6 +200,7 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not create volume %q: %v", volName, err)
 	}
+	klog.V(3).Infof("CreateVolume: took %s", time.Since(start))
 	return newCreateVolumeResponse(disk, req.VolumeContentSource), nil
 }
 
@@ -229,6 +232,7 @@ func (d *controllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVol
 
 func (d *controllerService) ControllerPublishVolume(ctx context.Context, req *csi.ControllerPublishVolumeRequest) (*csi.ControllerPublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", req)
+	start := time.Now()
 	volumeID := req.GetVolumeId()
 	if volumeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
@@ -284,13 +288,14 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, req *cs
 		}
 		return nil, status.Errorf(codes.Internal, "Could not attach volume %q to node %q: %v", volumeID, nodeID, err)
 	}
-	klog.V(5).Infof("ControllerPublishVolume: volume %s attached to node %s", volumeID, nodeID)
+	klog.V(5).Infof("ControllerPublishVolume: volume %s attached to node %s took %s", volumeID, nodeID, time.Since(start))
 
 	return &csi.ControllerPublishVolumeResponse{PublishContext: pvInfo}, nil
 }
 
 func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, req *csi.ControllerUnpublishVolumeRequest) (*csi.ControllerUnpublishVolumeResponse, error) {
 	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", req)
+	start := time.Now()
 	volumeID := req.GetVolumeId()
 	if volumeID == "" {
 		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
@@ -321,8 +326,7 @@ func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, req *
 	if err := d.cloud.DetachDisk(volumeID, nodeID); err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not detach volume %q from node %q: %v", volumeID, nodeID, err)
 	}
-	klog.V(5).Infof("ControllerUnpublishVolume: volume %s detached from node %s", volumeID, nodeID)
-
+	klog.V(5).Infof("ControllerUnpublishVolume: volume %s attached to node %s took %s", volumeID, nodeID, time.Since(start))
 	return &csi.ControllerUnpublishVolumeResponse{}, nil
 }
 
