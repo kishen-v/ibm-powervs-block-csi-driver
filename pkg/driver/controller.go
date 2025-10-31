@@ -180,29 +180,7 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 	if req.GetVolumeContentSource() != nil {
 		return handleClone(d.cloud, req, volName, volSizeBytes, opts)
 	}
-
-	// Check if the disk already exists
-	// Disk exists only if previous createVolume request fails due to any network/tcp error
-	disk, _ := d.cloud.GetDiskByName(volName)
-	if disk != nil {
-		// wait for volume to be available as the volume already exists
-		klog.V(3).Infof("CreateVolume: Found an existing volume %s in %q state.", volName, disk.State)
-		err := verifyVolumeDetails(opts, disk)
-		if err != nil {
-			return nil, err
-		}
-		if disk.State != cloud.VolumeAvailableState {
-			err = d.cloud.WaitForVolumeState(disk.VolumeID, cloud.VolumeAvailableState)
-			if err != nil {
-				return nil, status.Errorf(codes.Internal, "Disk exists, but not in required state. Current:%s Required:%s", disk.State, cloud.VolumeAvailableState)
-			}
-		}
-	} else {
-		disk, err = d.cloud.CreateDisk(volName, opts)
-		if err != nil {
-			return nil, status.Errorf(codes.Internal, "Could not create volume %q: %v", volName, err)
-		}
-	}
+	disk, err := d.cloud.CreateDisk(volName, opts)
 	klog.V(3).Infof("CreateVolume: created volume %s, took %s", volName, time.Since(start))
 	return newCreateVolumeResponse(disk, req.VolumeContentSource), nil
 }

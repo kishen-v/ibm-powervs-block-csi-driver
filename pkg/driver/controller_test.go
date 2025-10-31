@@ -79,7 +79,6 @@ func TestCreateVolume(t *testing.T) {
 				defer mockCtl.Finish()
 
 				mockCloud := mocks.NewMockCloud(mockCtl)
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(nil, nil)
 				mockCloud.EXPECT().CreateDisk(gomock.Eq(req.Name), gomock.Any()).Return(mockDisk, nil)
 
 				powervsDriver := controllerService{
@@ -232,7 +231,6 @@ func TestCreateVolume(t *testing.T) {
 				defer mockCtl.Finish()
 
 				mockCloud := mocks.NewMockCloud(mockCtl)
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(nil, nil)
 				mockCloud.EXPECT().CreateDisk(gomock.Eq(req.Name), mockDiskOpts).Return(mockDisk, nil)
 
 				powervsDriver := controllerService{
@@ -287,7 +285,6 @@ func TestCreateVolume(t *testing.T) {
 				defer mockCtl.Finish()
 
 				mockCloud := mocks.NewMockCloud(mockCtl)
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(nil, nil)
 				mockCloud.EXPECT().CreateDisk(gomock.Eq(req.Name), mockDiskOpts).Return(mockDisk, nil)
 
 				powervsDriver := controllerService{
@@ -342,7 +339,6 @@ func TestCreateVolume(t *testing.T) {
 				defer mockCtl.Finish()
 
 				mockCloud := mocks.NewMockCloud(mockCtl)
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(nil, nil)
 				mockCloud.EXPECT().CreateDisk(gomock.Eq(req.Name), mockDiskOpts).Return(mockDisk, nil)
 
 				powervsDriver := controllerService{
@@ -430,7 +426,6 @@ func TestCreateVolume(t *testing.T) {
 				defer mockCtl.Finish()
 
 				mockCloud := mocks.NewMockCloud(mockCtl)
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(nil, nil)
 				mockCloud.EXPECT().CreateDisk(gomock.Eq(req.Name), gomock.Any()).Return(mockDisk, nil)
 
 				powervsDriver := controllerService{
@@ -448,8 +443,7 @@ func TestCreateVolume(t *testing.T) {
 				}
 
 				// Subsequent call returns the created disk
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(mockDisk, nil)
-				mockCloud.EXPECT().WaitForVolumeState(gomock.Any(), gomock.Any()).Return(nil)
+				mockCloud.EXPECT().CreateDisk(gomock.Eq(extraReq.Name), gomock.Any()).Return(mockDisk, nil)
 				resp, err := powervsDriver.CreateVolume(ctx, extraReq)
 				if err != nil {
 					srvErr, ok := status.FromError(err)
@@ -512,7 +506,6 @@ func TestCreateVolume(t *testing.T) {
 				defer mockCtl.Finish()
 
 				mockCloud := mocks.NewMockCloud(mockCtl)
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(nil, nil)
 				mockCloud.EXPECT().CreateDisk(gomock.Eq(req.Name), gomock.Any()).Return(mockDisk, nil)
 
 				powervsDriver := controllerService{
@@ -574,7 +567,6 @@ func TestCreateVolume(t *testing.T) {
 				defer mockCtl.Finish()
 
 				mockCloud := mocks.NewMockCloud(mockCtl)
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(nil, nil)
 				mockCloud.EXPECT().CreateDisk(gomock.Eq(req.Name), gomock.Any()).Return(mockDisk, nil)
 
 				powervsDriver := controllerService{
@@ -633,7 +625,6 @@ func TestCreateVolume(t *testing.T) {
 				defer mockCtl.Finish()
 
 				mockCloud := mocks.NewMockCloud(mockCtl)
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(nil, nil)
 				mockCloud.EXPECT().CreateDisk(gomock.Eq(req.Name), mockDiskOpts).Return(mockDisk, nil)
 
 				powervsDriver := controllerService{
@@ -682,7 +673,6 @@ func TestCreateVolume(t *testing.T) {
 				defer mockCtl.Finish()
 
 				mockCloud := mocks.NewMockCloud(mockCtl)
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(nil, nil)
 				mockCloud.EXPECT().CreateDisk(gomock.Eq(req.Name), mockDiskOpts).Return(mockDisk, nil)
 
 				powervsDriver := controllerService{
@@ -770,7 +760,6 @@ func TestCreateVolume(t *testing.T) {
 				defer mockCtl.Finish()
 
 				mockCloud := mocks.NewMockCloud(mockCtl)
-				mockCloud.EXPECT().GetDiskByName(gomock.Eq(req.Name)).Return(nil, nil)
 				mockCloud.EXPECT().CreateDisk(gomock.Eq(req.Name), mockDiskOpts).Return(mockDisk, nil)
 
 				powervsDriver := controllerService{

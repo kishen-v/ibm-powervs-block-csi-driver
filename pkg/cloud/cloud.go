@@ -49,6 +49,10 @@ var (
 
 	// ErrAlreadyExists is returned when a resource is already existent.
 	ErrAlreadyExists = errors.New("resource already exists")
+
+	ErrVolumeNameAlreadyExists = errors.New("volume name already exists for cloud instance")
+
+	ErrVolumeNotFound = errors.New("volume not found")
 )
 
 // Disk represents a PowerVS volume.

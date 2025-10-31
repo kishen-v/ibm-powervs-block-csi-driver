@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"os"
 	"strings"
 	"time"
@@ -52,6 +54,7 @@ type powerVSCloud struct {
 	pvmInstancesClient *instance.IBMPIInstanceClient
 	volClient          *instance.IBMPIVolumeClient
 	cloneVolumeClient  *instance.IBMPICloneVolumeClient
+	diskOpMap          map[string]interface{}
 }
 
 type PVMInstance struct {
@@ -103,6 +106,7 @@ func newPowerVSCloud(cloudInstanceID, zone string, debug bool) (Cloud, error) {
 		pvmInstancesClient: pvmInstancesClient,
 		volClient:          volClient,
 		cloneVolumeClient:  cloneVolumeClient,
+		diskOpMap:          make(map[string]interface{}),
 	}, nil
 }
 
@@ -155,22 +159,48 @@ func (p *powerVSCloud) CreateDisk(volumeName string, diskOptions *DiskOptions) (
 		Shareable: &diskOptions.Shareable,
 		DiskType:  volumeType,
 	}
-
-	v, err := p.volClient.CreateVolume(dataVolume)
-	if err != nil {
-		return nil, err
+	// CreateVolume invoked for a particular PV for the first time
+	if _, ok := p.diskOpMap[volumeName]; !ok {
+		// Mark as already op-ed.
+		p.diskOpMap[volumeName] = struct{}{}
+		v, err := p.volClient.CreateVolume(dataVolume)
+		if err != nil {
+			// worst case, the pod restarted and lost the map. Handle such case with finding the available volume on cloud.
+			// based on the diskOp Map, there is an entry, so check if it's available and proceed to check for volume state
+			if strings.Contains(err.Error(), ErrVolumeNameAlreadyExists.Error()) {
+				return p.ensureVolumeAvailable(volumeName)
+			}
+			// Some other error apart from the creation of volume with conflicting names.
+			return nil, err
+		}
+		return &Disk{CapacityGiB: capacityGiB, VolumeID: *v.VolumeID, DiskType: v.DiskType, WWN: strings.ToLower(v.Wwn)}, nil
 	}
-
-	err = p.WaitForVolumeState(*v.VolumeID, VolumeAvailableState)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Disk{CapacityGiB: capacityGiB, VolumeID: *v.VolumeID, DiskType: v.DiskType, WWN: strings.ToLower(v.Wwn)}, nil
+	return p.ensureVolumeAvailable(volumeName)
 }
 
+func (p *powerVSCloud) ensureVolumeAvailable(volumeName string) (*Disk, error) {
+	disk, _ := p.GetDiskByName(volumeName)
+	if disk.State != VolumeAvailableState {
+		err := p.WaitForVolumeState(disk.VolumeID, VolumeAvailableState)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "Disk exists, but not in required state. Current:%s Required:%s", disk.State, VolumeAvailableState)
+		}
+	}
+	return disk, nil
+}
 func (p *powerVSCloud) DeleteDisk(volumeID string) (err error) {
-	return p.volClient.DeleteVolume(volumeID)
+	klog.V(4).Infof("Deleting Disk with ID: %s", volumeID)
+	start := time.Now()
+	err = p.volClient.DeleteVolume(volumeID)
+	if err != nil {
+		if strings.Contains(err.Error(), ErrVolumeNotFound.Error()) {
+			klog.Warningf("Volume %s not found, assuming deleted", volumeID)
+			return nil
+		}
+		return err
+	}
+	klog.V(4).Infof("DeleteDisk: Deleted disk %s successfully. Took %s", volumeID, time.Since(start))
+	return nil
 }
 
 func (p *powerVSCloud) AttachDisk(volumeID string, nodeID string) (err error) {
