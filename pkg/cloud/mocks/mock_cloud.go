@@ -21,6 +21,7 @@ import (
 type MockCloud struct {
 	ctrl     *gomock.Controller
 	recorder *MockCloudMockRecorder
+	isgomock struct{}
 }
 
 // MockCloudMockRecorder is the mock recorder for MockCloud.
@@ -64,7 +65,7 @@ func (m *MockCloud) CloneDisk(sourceVolumeName, cloneVolumeName string) (*cloud.
 }
 
 // CloneDisk indicates an expected call of CloneDisk.
-func (mr *MockCloudMockRecorder) CloneDisk(sourceVolumeName, cloneVolumeName interface{}) *gomock.Call {
+func (mr *MockCloudMockRecorder) CloneDisk(sourceVolumeName, cloneVolumeName any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloneDisk", reflect.TypeOf((*MockCloud)(nil).CloneDisk), sourceVolumeName, cloneVolumeName)
 }
@@ -152,7 +153,7 @@ func (m *MockCloud) GetDiskByNamePrefix(namePrefix string) (*cloud.Disk, error) 
 }
 
 // GetDiskByNamePrefix indicates an expected call of GetDiskByNamePrefix.
-func (mr *MockCloudMockRecorder) GetDiskByNamePrefix(namePrefix interface{}) *gomock.Call {
+func (mr *MockCloudMockRecorder) GetDiskByNamePrefix(namePrefix any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDiskByNamePrefix", reflect.TypeOf((*MockCloud)(nil).GetDiskByNamePrefix), namePrefix)
 }
@@ -170,21 +171,6 @@ func (m *MockCloud) GetPVMInstanceByID(instanceID string) (*cloud.PVMInstance, e
 func (mr *MockCloudMockRecorder) GetPVMInstanceByID(instanceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPVMInstanceByID", reflect.TypeOf((*MockCloud)(nil).GetPVMInstanceByID), instanceID)
-}
-
-// GetPVMInstanceByName mocks base method.
-func (m *MockCloud) GetPVMInstanceByName(instanceName string) (*cloud.PVMInstance, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetPVMInstanceByName", instanceName)
-	ret0, _ := ret[0].(*cloud.PVMInstance)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetPVMInstanceByName indicates an expected call of GetPVMInstanceByName.
-func (mr *MockCloudMockRecorder) GetPVMInstanceByName(instanceName any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPVMInstanceByName", reflect.TypeOf((*MockCloud)(nil).GetPVMInstanceByName), instanceName)
 }
 
 // GetPVMInstanceDetails mocks base method.
@@ -254,7 +240,7 @@ func (m *MockCloud) WaitForCloneStatus(taskId string) error {
 }
 
 // WaitForCloneStatus indicates an expected call of WaitForCloneStatus.
-func (mr *MockCloudMockRecorder) WaitForCloneStatus(taskId interface{}) *gomock.Call {
+func (mr *MockCloudMockRecorder) WaitForCloneStatus(taskId any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "WaitForCloneStatus", reflect.TypeOf((*MockCloud)(nil).WaitForCloneStatus), taskId)
 }

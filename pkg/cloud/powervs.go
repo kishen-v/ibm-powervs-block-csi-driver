@@ -58,9 +58,10 @@ type powerVSCloud struct {
 }
 
 type PVMInstance struct {
-	ID       string
-	DiskType string
-	Name     string
+	ID          string
+	DiskType    string
+	Name        string
+	StoragePool string
 }
 
 func NewPowerVSCloud(cloudInstanceID, zone string, debug bool) (Cloud, error) {
@@ -108,23 +109,6 @@ func newPowerVSCloud(cloudInstanceID, zone string, debug bool) (Cloud, error) {
 		cloneVolumeClient:  cloneVolumeClient,
 		diskOpMap:          make(map[string]interface{}),
 	}, nil
-}
-
-func (p *powerVSCloud) GetPVMInstanceByName(name string) (*PVMInstance, error) {
-	in, err := p.pvmInstancesClient.GetAll()
-	if err != nil {
-		return nil, err
-	}
-	for _, pvmInstance := range in.PvmInstances {
-		if name == *pvmInstance.ServerName {
-			return &PVMInstance{
-				ID:       *pvmInstance.PvmInstanceID,
-				DiskType: pvmInstance.StorageType,
-				Name:     *pvmInstance.ServerName,
-			}, nil
-		}
-	}
-	return nil, ErrNotFound
 }
 
 func (p *powerVSCloud) GetPVMInstanceByID(instanceID string) (*PVMInstance, error) {

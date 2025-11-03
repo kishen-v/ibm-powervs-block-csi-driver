@@ -12,6 +12,7 @@ import (
 
 	"github.com/IBM-Cloud/power-go-client/power/models"
 	"github.com/kubernetes-csi/csi-test/pkg/sanity"
+
 	"k8s.io/mount-utils"
 
 	"sigs.k8s.io/ibm-powervs-block-csi-driver/pkg/cloud"
@@ -132,14 +133,6 @@ func newFakeCloudProvider() *fakeCloudProvider {
 		pub:    make(map[string]string),
 		tokens: make(map[string]int64),
 	}
-}
-
-func (p *fakeCloudProvider) GetPVMInstanceByName(name string) (*cloud.PVMInstance, error) {
-	return &cloud.PVMInstance{
-		ID:       name + "-" + "id",
-		DiskType: "tier3",
-		Name:     name,
-	}, nil
 }
 
 func (p *fakeCloudProvider) GetPVMInstanceByID(instanceID string) (*cloud.PVMInstance, error) {

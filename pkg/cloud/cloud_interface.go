@@ -32,7 +32,6 @@ type Cloud interface {
 	GetDiskByName(name string) (disk *Disk, err error)
 	GetDiskByNamePrefix(namePrefix string) (disk *Disk, err error)
 	GetDiskByID(volumeID string) (disk *Disk, err error)
-	GetPVMInstanceByName(instanceName string) (instance *PVMInstance, err error)
 	GetPVMInstanceByID(instanceID string) (instance *PVMInstance, err error)
 	GetPVMInstanceDetails(instanceID string) (*models.PVMInstance, error)
 	UpdateStoragePoolAffinity(instanceID string) error
