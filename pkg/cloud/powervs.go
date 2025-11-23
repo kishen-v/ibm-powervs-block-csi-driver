@@ -252,12 +252,15 @@ func (p *powerVSCloud) WaitForCloneStatus(cloneTaskId string) error {
 }
 
 func (p *powerVSCloud) GetDiskByName(name string) (disk *Disk, err error) {
+	klog.Infof("Looking for volume by name: %s", name)
 	vols, err := p.volClient.GetAll()
 	if err != nil {
 		return nil, err
 	}
 	for _, v := range vols.Volumes {
+		klog.Infof("Volume name: %s", *v.Name)
 		if name == *v.Name {
+			klog.Infof("Found volume by name: %s", *v.Name)
 			return &Disk{
 				Name:        *v.Name,
 				DiskType:    *v.DiskType,
