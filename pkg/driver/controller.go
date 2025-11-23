@@ -191,9 +191,14 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, err
 		}
 		if disk.State != cloud.VolumeAvailableState {
-			err = d.cloud.WaitForVolumeState(disk.VolumeID, cloud.VolumeAvailableState)
+			vol, err := d.cloud.WaitForVolumeState(disk.VolumeID, cloud.VolumeAvailableState)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "Disk exists, but not in required state. Current:%s Required:%s", disk.State, cloud.VolumeAvailableState)
+			}
+			// When the disk is still in the "Creating" state, the WWN will not be available.
+			// In such a case, once when the volume is available, assign the WWN to the disk if not already assigned.
+			if disk.WWN == "" {
+				disk.WWN = vol.Wwn
 			}
 		}
 	} else {
@@ -256,7 +261,7 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, req *cs
 
 	pvInfo := map[string]string{WWNKey: req.VolumeContext[WWNKey]}
 
-	err := d.cloud.AttachDisk(volumeID, nodeID)
+	_, err := d.cloud.AttachDisk(volumeID, nodeID)
 	if err != nil {
 		if strings.Contains(err.Error(), cloud.ErrConflictVolumeAlreadyExists.Error()) {
 			return nil, status.Error(codes.AlreadyExists, err.Error())
@@ -288,7 +293,7 @@ func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, req *
 		return nil, status.Error(codes.InvalidArgument, "Node ID not provided")
 	}
 
-	err := d.cloud.DetachDisk(volumeID, nodeID)
+	_, err := d.cloud.DetachDisk(volumeID, nodeID)
 	if err != nil {
 		if strings.Contains(err.Error(), cloud.ErrVolumeDetachNotFound.Error()) {
 			klog.V(4).Infof("ControllerUnpublishVolume: volume %s is detached from node %s, took %s", volumeID, nodeID, time.Since(start))

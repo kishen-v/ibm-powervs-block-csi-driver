@@ -155,10 +155,10 @@ func (p *fakeCloudProvider) UpdateStoragePoolAffinity(instanceID string) error {
 	return nil
 }
 
-func (c *fakeCloudProvider) CreateDisk(volumeName string, diskOptions *cloud.DiskOptions) (*cloud.Disk, error) {
+func (p *fakeCloudProvider) CreateDisk(volumeName string, diskOptions *cloud.DiskOptions) (*cloud.Disk, error) {
 	r1 := rand.New(rand.NewSource(time.Now().UnixNano()))
 
-	if existingDisk, ok := c.disks[volumeName]; ok {
+	if existingDisk, ok := p.disks[volumeName]; ok {
 		// Already Created volume
 		if existingDisk.Disk.CapacityGiB != util.BytesToGiB(diskOptions.CapacityBytes) {
 			return nil, errors.New("disk Already exists")
@@ -173,7 +173,7 @@ func (c *fakeCloudProvider) CreateDisk(volumeName string, diskOptions *cloud.Dis
 			WWN:         "/fake-path",
 		},
 	}
-	c.disks[volumeName] = d
+	p.disks[volumeName] = d
 	return d.Disk, nil
 }
 
@@ -186,16 +186,16 @@ func (c *fakeCloudProvider) DeleteDisk(volumeID string) error {
 	return nil
 }
 
-func (c *fakeCloudProvider) AttachDisk(volumeID, nodeID string) error {
+func (c *fakeCloudProvider) AttachDisk(volumeID, nodeID string) (*models.Volume, error) {
 	if _, ok := c.pub[volumeID]; ok {
-		return cloud.ErrAlreadyExists
+		return nil, cloud.ErrAlreadyExists
 	}
 	c.pub[volumeID] = nodeID
-	return nil
+	return &models.Volume{VolumeID: ptr.To("a1b2c3-d4e5f6"), VolumeType: "tier3"}, nil
 }
 
-func (c *fakeCloudProvider) DetachDisk(volumeID, nodeID string) error {
-	return nil
+func (c *fakeCloudProvider) DetachDisk(volumeID, nodeID string) (*models.Volume, error) {
+	return nil, nil
 }
 
 func (c *fakeCloudProvider) CloneDisk(sourceVolumeName string, cloneVolumeName string) (disk *cloud.Disk, err error) {
@@ -206,8 +206,8 @@ func (c *fakeCloudProvider) IsAttached(volumeID string, nodeID string) (err erro
 	return nil
 }
 
-func (c *fakeCloudProvider) WaitForVolumeState(volumeID, expectedState string) error {
-	return nil
+func (c *fakeCloudProvider) WaitForVolumeState(volumeID, expectedState string) (*models.Volume, error) {
+	return &models.Volume{VolumeID: ptr.To("a1b2c3-d4e5f6")}, nil
 }
 
 func (c *fakeCloudProvider) WaitForCloneStatus(cloneTaskId string) error {
