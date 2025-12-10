@@ -204,6 +204,16 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		}
 	} else {
 		if errors.Is(err, cloud.ErrNotFound) {
+			// TODO: Once the inconsistency on the cloud is fixed, the recheck logic (GetDiskByName) can be removed.
+			// Begin
+			time.Sleep(2 * time.Second)
+			// The only case we want is that we don't find a disk and we have to create one.
+			if _, err = d.cloud.GetDiskByName(volName); !errors.Is(err, cloud.ErrNotFound) {
+				return nil, status.Errorf(codes.Internal, "Error occurred while retrieving disk by name: %q:%v ", volName, err)
+			} else if err == nil {
+				return nil, status.Errorf(codes.Internal, "Inconsistent data on cloud, duplicate disk found %q", volName)
+			}
+			// End
 			disk, err = d.cloud.CreateDisk(volName, opts)
 			if err != nil {
 				return nil, status.Errorf(codes.Internal, "Could not create volume %q: %v", volName, err)
