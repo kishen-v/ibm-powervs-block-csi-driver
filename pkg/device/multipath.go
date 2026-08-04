@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -40,19 +39,33 @@ const (
 var (
 	showPathsFormat  = []string{"show", "paths", "raw", "format", "%w %d %t %i %o %T %z %s %m"}
 	orphanPathRegexp = regexp.MustCompile(orphanPathsPattern)
+	majorMinorRe     = regexp.MustCompile(`^\d+:\d+$`)
 )
 
-// getPathsCount get number of slaves for a given device.
-func getPathsCount(mapper string) (count int, err error) {
-	// TODO: This can be achieved reading the full line processing instead of piped command
-	statusCmd := fmt.Sprintf("dmsetup status --target multipath %s | awk 'BEGIN{RS=\" \";active=0}/[0-9]+:[0-9]+/{dev=1}/A/{if (dev == 1) active++; dev=0} END{ print active }'", mapper)
-
-	outBytes, err := exec.CommandContext(context.Background(), "bash", "-c", statusCmd).CombinedOutput()
-	out := strings.TrimSuffix(string(outBytes), "\n")
-	if err != nil || isDmsetupStatusError(out) {
+// getPathsCount returns the number of active paths for the given multipath device.
+func getPathsCount(mapper string) (int, error) {
+	out, err := exec.CommandContext(context.Background(), dmsetupcommand, "status", "--target", "multipath", mapper).CombinedOutput()
+	if err != nil || isDmsetupStatusError(string(out)) {
 		return 0, fmt.Errorf("error while running dmsetup status command: %s : %v", out, err)
 	}
-	return strconv.Atoi(out)
+	count := parseActivePaths(string(out))
+	klog.V(4).Infof("active paths for %s: %d", mapper, count)
+	return count, nil
+}
+
+// parseActivePaths counts active paths in dmsetup status output.
+// The multipath target status line contains space-separated tokens; each active
+// path is represented as a "major:minor" token immediately followed by "A".
+// Example: "mpathX: 0 8388608 multipath 2 0 1 0 E 0 1 1 253:0 A 0 1 1 253:1 A 0 1 1"
+func parseActivePaths(out string) int {
+	tokens := strings.Fields(out)
+	active := 0
+	for i := 0; i < len(tokens)-1; i++ {
+		if majorMinorRe.MatchString(tokens[i]) && tokens[i+1] == "A" {
+			active++
+		}
+	}
+	return active
 }
 
 // isDmsetupStatusError check for command failure or empty stdout msg.
