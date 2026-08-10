@@ -31,6 +31,7 @@ spec:
         - name: powervs-plugin
           securityContext:
             privileged: true
+            runAsUser: 0
           resources:
             requests:
               cpu: 10m
@@ -68,6 +69,9 @@ spec:
               mountPath: /dev
             - name: sys-dir
               mountPath: /sys
+            - name: sa-token
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
           ports:
             - name: healthz
               containerPort: 9808
@@ -161,7 +165,6 @@ spec:
             sources:
               - serviceAccountToken:
                   path: token
-                  audience: api
               - configMap:
                   name: kube-root-ca.crt
                   items:

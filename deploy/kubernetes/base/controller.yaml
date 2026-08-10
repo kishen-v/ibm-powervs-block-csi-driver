@@ -26,6 +26,7 @@ spec:
         - operator: Exists
       securityContext:
         runAsNonRoot: true
+        fsGroup: 1000
         seccompProfile:
           type: RuntimeDefault
       containers:
@@ -64,6 +65,9 @@ spec:
               readOnly: true
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+            - name: sa-token
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
           ports:
             - name: healthz
               containerPort: 9808
@@ -112,6 +116,9 @@ spec:
             - name: ibm-secret
               mountPath: /etc/secrets
               readOnly: true
+            - name: sa-token
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
         - name: csi-provisioner
           image: registry.k8s.io/sig-storage/csi-provisioner:v5.0.1
           args:
@@ -126,6 +133,7 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+            runAsUser: 65534
             capabilities:
               drop: ["ALL"]
           resources:
@@ -154,6 +162,7 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+            runAsUser: 65534
             capabilities:
               drop: ["ALL"]
           resources:
@@ -179,6 +188,7 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+            runAsUser: 65534
             capabilities:
               drop: ["ALL"]
           resources:
@@ -196,10 +206,11 @@ spec:
         - name: liveness-probe
           image: registry.k8s.io/sig-storage/livenessprobe:v2.12.0
           args:
-            - --csi-address=/csi/csi.sock
+            - --csi-address=/var/lib/csi/sockets/pluginproxy/csi.sock
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
+            runAsUser: 65534
             capabilities:
               drop: ["ALL"]
           resources:
@@ -210,7 +221,7 @@ spec:
               memory: 64Mi
           volumeMounts:
             - name: socket-dir
-              mountPath: /csi
+              mountPath: /var/lib/csi/sockets/pluginproxy/
       volumes:
         - name: socket-dir
           emptyDir: {}
@@ -222,7 +233,6 @@ spec:
             sources:
               - serviceAccountToken:
                   path: token
-                  audience: api
               - configMap:
                   name: kube-root-ca.crt
                   items:
