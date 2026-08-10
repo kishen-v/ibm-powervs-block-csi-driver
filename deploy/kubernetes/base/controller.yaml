@@ -65,21 +65,11 @@ spec:
               readOnly: true
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+            - name: tmp-dir
+              mountPath: /tmp
             - name: sa-token
               mountPath: /var/run/secrets/kubernetes.io/serviceaccount
               readOnly: true
-          ports:
-            - name: healthz
-              containerPort: 9808
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: healthz
-            initialDelaySeconds: 10
-            timeoutSeconds: 3
-            periodSeconds: 10
-            failureThreshold: 5
         - name: node-update-controller
           image: registry.k8s.io/cloud-provider-ibm/ibm-powervs-block-csi-driver:main
           command: ["/node-update-controller"]
@@ -109,7 +99,7 @@ spec:
             httpGet:
               path: /healthz
               port: healthz
-            initialDelaySeconds: 5
+            initialDelaySeconds: 15
             timeoutSeconds: 10
             periodSeconds: 30
           volumeMounts:
@@ -119,6 +109,8 @@ spec:
             - name: sa-token
               mountPath: /var/run/secrets/kubernetes.io/serviceaccount
               readOnly: true
+            - name: tmp-dir
+              mountPath: /tmp
         - name: csi-provisioner
           image: registry.k8s.io/sig-storage/csi-provisioner:v5.0.1
           args:
@@ -207,6 +199,7 @@ spec:
           image: registry.k8s.io/sig-storage/livenessprobe:v2.12.0
           args:
             - --csi-address=/var/lib/csi/sockets/pluginproxy/csi.sock
+            - --health-port=9808
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -222,8 +215,22 @@ spec:
           volumeMounts:
             - name: socket-dir
               mountPath: /var/lib/csi/sockets/pluginproxy/
+          ports:
+            - name: healthz
+              containerPort: 9808
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthz
+            initialDelaySeconds: 30
+            timeoutSeconds: 5
+            periodSeconds: 10
+            failureThreshold: 5
       volumes:
         - name: socket-dir
+          emptyDir: {}
+        - name: tmp-dir
           emptyDir: {}
         - name: ibm-secret
           secret:
