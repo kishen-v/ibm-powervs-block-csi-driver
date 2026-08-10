@@ -25,10 +25,14 @@ RUN GOARCH=$(echo $TARGETPLATFORM | cut -f2 -d '/') make driver node-update-cont
 FROM registry.k8s.io/build-image/debian-base:bookworm-v1.0.8 AS debian-base
 RUN clean-install ca-certificates e2fsprogs mount udev util-linux xfsprogs bash multipath-tools sg3-utils
 COPY --from=builder /go/src/sigs.k8s.io/ibm-powervs-block-csi-driver/bin/* /
+RUN addgroup --gid 1000 nonroot && adduser --uid 1000 --gid 1000 --disabled-password --gecos "" nonroot
+USER 1000
 ENTRYPOINT ["/ibm-powervs-block-csi-driver"]
 
 # centos base image
 FROM --platform=$TARGETPLATFORM quay.io/centos/centos:stream9 AS centos-base
 RUN yum install -y util-linux nfs-utils e2fsprogs xfsprogs ca-certificates device-mapper-multipath && yum clean all && rm -rf /var/cache/yum
 COPY --from=builder /go/src/sigs.k8s.io/ibm-powervs-block-csi-driver/bin/* /
+RUN groupadd --gid 1000 nonroot && useradd --uid 1000 --gid 1000 --no-create-home nonroot
+USER 1000
 ENTRYPOINT ["/ibm-powervs-block-csi-driver"]
