@@ -13,6 +13,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// stubPowerVSMetadata replaces powerVSMetadataNewFunc for the duration of a test,
+// restoring it on cleanup so parallel tests are not affected.
+func stubPowerVSMetadata(t *testing.T, svc MetadataService, err error) {
+	t.Helper()
+	orig := powerVSMetadataNewFunc
+	powerVSMetadataNewFunc = func() (MetadataService, error) { return svc, err }
+	t.Cleanup(func() { powerVSMetadataNewFunc = orig })
+}
+
 func TestNewMetadataService(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -55,11 +64,11 @@ func TestNewMetadataService(t *testing.T) {
 			expectedError: "CSI_NODE_NAME env var not set",
 		},
 		{
-			name:           "empty ProviderID",
+			name:           "empty ProviderID - PowerVS metadata service fallback fails",
 			nodeName:       "test-node",
 			providerID:     "",
-			ProvideIDError: "ProviderID is empty",
-			expectedError:  "ProviderID is empty",
+			ProvideIDError: "PowerVS metadata service unavailable",
+			expectedError:  "PowerVS metadata service fallback failed",
 		},
 		{
 			name:           "invalid providerID format",
@@ -72,6 +81,13 @@ func TestNewMetadataService(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Stub the PowerVS metadata service so we never make real network calls.
+			if tt.ProvideIDError != "" {
+				stubPowerVSMetadata(t, nil, errors.New(tt.ProvideIDError))
+			} else {
+				stubPowerVSMetadata(t, nil, errors.New("PowerVS metadata service should not be reached"))
+			}
+
 			// Set CSI_NODE_NAME if provided
 			if tt.nodeName != "" {
 				t.Setenv("CSI_NODE_NAME", tt.nodeName)
@@ -138,10 +154,21 @@ func TestKubernetesAPIInstanceInfo(t *testing.T) {
 			expectedError: "nodes \"missing-node\" not found",
 		},
 		{
-			name:          "Node exists but ProviderID is empty",
+			name:          "Node exists but ProviderID is empty – PowerVS metadata service fallback fails",
 			nodeName:      "test-node",
 			node:          newNode("test-node", ""),
-			expectedError: "ProviderID is empty",
+			expectedError: "PowerVS metadata service fallback failed",
+		},
+		{
+			name:     "Node exists but ProviderID is empty – PowerVS metadata service fallback succeeds",
+			nodeName: "test-node",
+			node:     newNode("test-node", ""),
+			expectedMetadata: &Metadata{
+				region:          "osa",
+				zone:            "osa21",
+				cloudInstanceId: "svc-abc",
+				pvmInstanceId:   "vm-xyz",
+			},
 		},
 		{
 			name:          "Invalid ProviderID Length",
@@ -186,36 +213,45 @@ func TestKubernetesAPIInstanceInfo(t *testing.T) {
 		},
 	}
 
-	run := func(tc struct {
-		name             string
-		nodeName         string
-		node             *corev1.Node
-		expectedError    string
-		expectedMetadata *Metadata
-	}) {
-		t.Setenv("CSI_NODE_NAME", tc.nodeName)
-
-		clientset := fake.NewSimpleClientset()
-		if tc.node != nil {
-			clientset = fake.NewSimpleClientset(tc.node)
-		}
-
-		metadata, err := KubernetesAPIInstanceInfo(clientset)
-
-		if tc.expectedError != "" {
-			require.ErrorContains(t, err, tc.expectedError)
-			require.Nil(t, metadata)
-		} else {
-			require.NoError(t, err)
-			require.Equal(t, tc.expectedMetadata.region, metadata.region)
-			require.Equal(t, tc.expectedMetadata.zone, metadata.zone)
-			require.Equal(t, tc.expectedMetadata.cloudInstanceId, metadata.cloudInstanceId)
-			require.Equal(t, tc.expectedMetadata.pvmInstanceId, metadata.pvmInstanceId)
-		}
+	powerVSMetadataResult := &Metadata{
+		region:          "osa",
+		zone:            "osa21",
+		cloudInstanceId: "svc-abc",
+		pvmInstanceId:   "vm-xyz",
 	}
 
 	for _, tt := range testCases {
-		t.Run(tt.name, func(t *testing.T) { run(tt) })
+		t.Run(tt.name, func(t *testing.T) {
+			// Stub the PowerVS metadata service based on what the test expects.
+			switch {
+			case tt.expectedError == "PowerVS metadata service fallback failed":
+				stubPowerVSMetadata(t, nil, errors.New("PowerVS metadata service unavailable"))
+			case tt.node != nil && tt.node.Spec.ProviderID == "" && tt.expectedMetadata != nil:
+				stubPowerVSMetadata(t, powerVSMetadataResult, nil)
+			default:
+				stubPowerVSMetadata(t, nil, errors.New("PowerVS metadata service should not be reached"))
+			}
+
+			t.Setenv("CSI_NODE_NAME", tt.nodeName)
+
+			clientset := fake.NewSimpleClientset()
+			if tt.node != nil {
+				clientset = fake.NewSimpleClientset(tt.node)
+			}
+
+			metadata, err := KubernetesAPIInstanceInfo(clientset)
+
+			if tt.expectedError != "" {
+				require.ErrorContains(t, err, tt.expectedError)
+				require.Nil(t, metadata)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.expectedMetadata.region, metadata.region)
+				require.Equal(t, tt.expectedMetadata.zone, metadata.zone)
+				require.Equal(t, tt.expectedMetadata.cloudInstanceId, metadata.cloudInstanceId)
+				require.Equal(t, tt.expectedMetadata.pvmInstanceId, metadata.pvmInstanceId)
+			}
+		})
 	}
 }
 

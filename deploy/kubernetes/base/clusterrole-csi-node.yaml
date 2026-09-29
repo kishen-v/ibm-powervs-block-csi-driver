@@ -8,4 +8,6 @@ metadata:
 rules:
   - apiGroups: [""]
     resources: ["nodes"]
-    verbs: ["get"]
+    # "patch" is the minimum RBAC verb for writing node fields; scoped to
+    # /spec/providerID via JSON Patch "test"+"add" at the operation level.
+    verbs: ["get", "patch"]
