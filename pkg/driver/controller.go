@@ -140,11 +140,6 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 		return nil, status.Error(codes.InvalidArgument, "Volume name not provided")
 	}
 
-	if acquired := d.volumeLocks.TryAcquire(volName); !acquired {
-		return nil, status.Errorf(codes.Aborted, util.VolumeOperationAlreadyExistsFmt, volName)
-	}
-	defer d.volumeLocks.Release(volName)
-
 	volSizeBytes, err := getVolSizeBytes(req)
 	if err != nil {
 		return nil, err
@@ -172,6 +167,11 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 			return nil, status.Errorf(codes.InvalidArgument, "Invalid parameter key %s for CreateVolume", key)
 		}
 	}
+
+	if acquired := d.volumeLocks.TryAcquire(volName); !acquired {
+		return nil, status.Errorf(codes.Aborted, util.VolumeOperationAlreadyExistsFmt, volName)
+	}
+	defer d.volumeLocks.Release(volName)
 
 	opts := &cloud.DiskOptions{
 		Shareable:     isShareableVolume(volCaps),
@@ -220,8 +220,8 @@ func (d *controllerService) CreateVolume(ctx context.Context, req *csi.CreateVol
 func (d *controllerService) DeleteVolume(ctx context.Context, req *csi.DeleteVolumeRequest) (*csi.DeleteVolumeResponse, error) {
 	klog.V(4).Infof("DeleteVolume: called with args: %+v", req)
 	volumeID := req.GetVolumeId()
-	if volumeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
+	if err := requireParameter(volumeID, "Volume ID"); err != nil {
+		return nil, err
 	}
 
 	if acquired := d.volumeLocks.TryAcquire(volumeID); !acquired {
@@ -239,18 +239,13 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, req *cs
 	klog.V(4).Infof("ControllerPublishVolume: called with args %+v", protosanitizer.StripSecrets(req))
 	start := time.Now()
 	volumeID := req.GetVolumeId()
-	if volumeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
+	if err := requireParameter(volumeID, "Volume ID"); err != nil {
+		return nil, err
 	}
-
-	if acquired := d.volumeLocks.TryAcquire(volumeID); !acquired {
-		return nil, status.Errorf(codes.Aborted, util.VolumeOperationAlreadyExistsFmt, volumeID)
-	}
-	defer d.volumeLocks.Release(volumeID)
 
 	nodeID := req.GetNodeId()
-	if nodeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Node ID not provided")
+	if err := requireParameter(nodeID, "Node ID"); err != nil {
+		return nil, err
 	}
 	volCap := req.GetVolumeCapability()
 	if volCap == nil {
@@ -264,6 +259,11 @@ func (d *controllerService) ControllerPublishVolume(ctx context.Context, req *cs
 		errString := fmt.Sprintf("Volume capabilities %s not supported. Only AccessModes [ReadWriteOnce], [ReadWriteMany], [ReadOnlyMany] supported.", stringModes)
 		return nil, status.Error(codes.InvalidArgument, errString)
 	}
+
+	if acquired := d.volumeLocks.TryAcquire(volumeID); !acquired {
+		return nil, status.Errorf(codes.Aborted, util.VolumeOperationAlreadyExistsFmt, volumeID)
+	}
+	defer d.volumeLocks.Release(volumeID)
 
 	pvInfo := map[string]string{WWNKey: req.VolumeContext[WWNKey]}
 
@@ -299,19 +299,19 @@ func (d *controllerService) ControllerUnpublishVolume(ctx context.Context, req *
 	klog.V(4).Infof("ControllerUnpublishVolume: called with args %+v", protosanitizer.StripSecrets(req))
 	start := time.Now()
 	volumeID := req.GetVolumeId()
-	if volumeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
+	if err := requireParameter(volumeID, "Volume ID"); err != nil {
+		return nil, err
+	}
+
+	nodeID := req.GetNodeId()
+	if err := requireParameter(nodeID, "Node ID"); err != nil {
+		return nil, err
 	}
 
 	if acquired := d.volumeLocks.TryAcquire(volumeID); !acquired {
 		return nil, status.Errorf(codes.Aborted, util.VolumeOperationAlreadyExistsFmt, volumeID)
 	}
 	defer d.volumeLocks.Release(volumeID)
-
-	nodeID := req.GetNodeId()
-	if nodeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Node ID not provided")
-	}
 
 	err := d.cloud.DetachDisk(volumeID, nodeID)
 	if err != nil {
@@ -355,8 +355,8 @@ func (d *controllerService) ListVolumes(ctx context.Context, req *csi.ListVolume
 func (d *controllerService) ValidateVolumeCapabilities(ctx context.Context, req *csi.ValidateVolumeCapabilitiesRequest) (*csi.ValidateVolumeCapabilitiesResponse, error) {
 	klog.V(4).Infof("ValidateVolumeCapabilities: called with args %+v", protosanitizer.StripSecrets(req))
 	volumeID := req.GetVolumeId()
-	if volumeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
+	if err := requireParameter(volumeID, "Volume ID"); err != nil {
+		return nil, err
 	}
 
 	volCaps := req.GetVolumeCapabilities()
@@ -383,14 +383,9 @@ func (d *controllerService) ValidateVolumeCapabilities(ctx context.Context, req 
 func (d *controllerService) ControllerExpandVolume(ctx context.Context, req *csi.ControllerExpandVolumeRequest) (*csi.ControllerExpandVolumeResponse, error) {
 	klog.V(4).Infof("ControllerExpandVolume: called with args %+v", protosanitizer.StripSecrets(req))
 	volumeID := req.GetVolumeId()
-	if volumeID == "" {
-		return nil, status.Error(codes.InvalidArgument, "Volume ID not provided")
+	if err := requireParameter(volumeID, "Volume ID"); err != nil {
+		return nil, err
 	}
-
-	if acquired := d.volumeLocks.TryAcquire(volumeID); !acquired {
-		return nil, status.Errorf(codes.Aborted, util.VolumeOperationAlreadyExistsFmt, volumeID)
-	}
-	defer d.volumeLocks.Release(volumeID)
 
 	capRange := req.GetCapacityRange()
 	if capRange == nil {
@@ -402,6 +397,11 @@ func (d *controllerService) ControllerExpandVolume(ctx context.Context, req *csi
 	if maxVolSize > 0 && maxVolSize < newSize {
 		return nil, status.Error(codes.InvalidArgument, "After round-up, volume size exceeds the limit specified")
 	}
+
+	if acquired := d.volumeLocks.TryAcquire(volumeID); !acquired {
+		return nil, status.Errorf(codes.Aborted, util.VolumeOperationAlreadyExistsFmt, volumeID)
+	}
+	defer d.volumeLocks.Release(volumeID)
 
 	actualSizeGiB, err := d.cloud.ResizeDisk(volumeID, newSize)
 	if err != nil {

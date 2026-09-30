@@ -18,6 +18,9 @@ package driver
 
 import (
 	"fmt"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 var supportedModes = []Mode{AllMode, ControllerMode, NodeMode}
@@ -32,6 +35,15 @@ func ValidateDriverOptions(options *Options) error {
 func validateMode(mode Mode) error {
 	if mode != AllMode && mode != ControllerMode && mode != NodeMode {
 		return fmt.Errorf("Mode is not supported (actual: %s, supported: %v)", mode, supportedModes)
+	}
+	return nil
+}
+
+// requireParameter returns an InvalidArgument gRPC error when val is empty.
+// Use for validating required string fields in CSI RPC handlers.
+func requireParameter(val, name string) error {
+	if val == "" {
+		return status.Errorf(codes.InvalidArgument, "%s not provided", name)
 	}
 	return nil
 }
