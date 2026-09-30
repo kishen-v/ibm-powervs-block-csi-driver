@@ -1738,6 +1738,73 @@ func TestIsShareableVolume(t *testing.T) {
 	}
 }
 
+func TestParseVolumeParameters(t *testing.T) {
+	testCases := []struct {
+		name          string
+		params        map[string]string
+		expVolumeType string
+		expCode       codes.Code
+	}{
+		{
+			name:          "nil parameters",
+			params:        nil,
+			expVolumeType: cloud.DefaultVolumeType,
+			expCode:       codes.OK,
+		},
+		{
+			name:          "empty parameters",
+			params:        map[string]string{},
+			expVolumeType: cloud.DefaultVolumeType,
+			expCode:       codes.OK,
+		},
+		{
+			name: "valid volume type tier1",
+			params: map[string]string{
+				VolumeTypeKey: cloud.VolumeTypeTier1,
+			},
+			expVolumeType: cloud.VolumeTypeTier1,
+			expCode:       codes.OK,
+		},
+		{
+			name: "valid volume type case-insensitive key",
+			params: map[string]string{
+				"TYPE": cloud.VolumeTypeTier3,
+			},
+			expVolumeType: cloud.VolumeTypeTier3,
+			expCode:       codes.OK,
+		},
+		{
+			name: "invalid parameter key",
+			params: map[string]string{
+				"invalid-key": "value",
+			},
+			expCode: codes.InvalidArgument,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			volumeType, err := parseVolumeParameters(tc.params)
+			if tc.expCode == codes.OK {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if volumeType != tc.expVolumeType {
+					t.Fatalf("expected volumeType %s, got %s", tc.expVolumeType, volumeType)
+				}
+			} else {
+				if err == nil {
+					t.Fatalf("expected error with code %v, got nil", tc.expCode)
+				}
+				statusErr, ok := status.FromError(err)
+				if !ok || statusErr.Code() != tc.expCode {
+					t.Fatalf("expected status code %v, got %v (err: %v)", tc.expCode, statusErr.Code(), err)
+				}
+			}
+		})
+	}
+}
+
 func checkExpectedErrorCode(t *testing.T, err error, expectedCode codes.Code) {
 	if err == nil {
 		t.Fatalf("Expected operation to fail but got no error")
