@@ -131,7 +131,7 @@ func (p *powerVSCloud) CreateDisk(volumeName string, diskOptions *DiskOptions) (
 		return nil, err
 	}
 	klog.V(4).Infof("Volume %s has been provisioned successfully, took %v", *v.Name, time.Since(start))
-	return &Disk{CapacityGiB: capacityGiB, VolumeID: *v.VolumeID, DiskType: v.DiskType, WWN: strings.ToLower(v.Wwn)}, nil
+	return volumeToDisk(v), nil
 }
 
 func (p *powerVSCloud) DeleteDisk(volumeID string) (err error) {
@@ -264,15 +264,7 @@ func (p *powerVSCloud) GetDiskByName(name string) (disk *Disk, err error) {
 	}
 	for _, v := range vols.Volumes {
 		if name == *v.Name {
-			return &Disk{
-				Name:        *v.Name,
-				DiskType:    *v.DiskType,
-				VolumeID:    *v.VolumeID,
-				WWN:         strings.ToLower(*v.Wwn),
-				Shareable:   *v.Shareable,
-				CapacityGiB: int64(*v.Size),
-				State:       *v.State,
-			}, nil
+			return volumeRefToDisk(v), nil
 		}
 	}
 	klog.Warningf("Cannot find volume by name %q", name)
@@ -286,15 +278,7 @@ func (p *powerVSCloud) GetDiskByNamePrefix(namePrefix string) (disk *Disk, err e
 	}
 	for _, v := range vols.Volumes {
 		if strings.HasPrefix(*v.Name, namePrefix) {
-			return &Disk{
-				Name:        *v.Name,
-				DiskType:    *v.DiskType,
-				VolumeID:    *v.VolumeID,
-				WWN:         strings.ToLower(*v.Wwn),
-				Shareable:   *v.Shareable,
-				CapacityGiB: int64(*v.Size),
-				State:       *v.State,
-			}, nil
+			return volumeRefToDisk(v), nil
 		}
 	}
 	return nil, ErrNotFound
@@ -308,6 +292,10 @@ func (p *powerVSCloud) GetDiskByID(volumeID string) (disk *Disk, err error) {
 		}
 		return nil, err
 	}
+	return volumeToDisk(v), nil
+}
+
+func volumeToDisk(v *models.Volume) *Disk {
 	return &Disk{
 		Name:        *v.Name,
 		DiskType:    v.DiskType,
@@ -316,7 +304,19 @@ func (p *powerVSCloud) GetDiskByID(volumeID string) (disk *Disk, err error) {
 		Shareable:   *v.Shareable,
 		CapacityGiB: int64(*v.Size),
 		State:       v.State,
-	}, nil
+	}
+}
+
+func volumeRefToDisk(v *models.VolumeReference) *Disk {
+	return &Disk{
+		Name:        *v.Name,
+		VolumeID:    *v.VolumeID,
+		DiskType:    *v.DiskType,
+		WWN:         strings.ToLower(*v.Wwn),
+		Shareable:   *v.Shareable,
+		CapacityGiB: int64(*v.Size),
+		State:       *v.State,
+	}
 }
 
 func readCredentials() (string, error) {
