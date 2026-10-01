@@ -22,6 +22,7 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -94,12 +95,16 @@ func isMultipathTimeoutError(msg string) bool {
 func retryCleanupDevice(dev *Device) error {
 	maxTries := 10
 	var err error
+	sleepInterval := 500 * time.Millisecond
 	for try := 0; try < maxTries; try++ {
 		err = multipathRemoveDmDevice(dev.Mapper)
 		if err == nil {
 			return nil
 		}
-		time.Sleep(5 * time.Second)
+		time.Sleep(sleepInterval)
+		if sleepInterval < 2*time.Second {
+			sleepInterval *= 2
+		}
 	}
 	return err
 }
@@ -164,12 +169,18 @@ func cleanupOrphanPaths() {
 	}
 
 	listOrphanPaths := orphanPathRegexp.FindAllString(out, -1)
+	var wg sync.WaitGroup
 	for _, orphanPath := range listOrphanPaths {
 		result := findStringSubmatchMap(orphanPath, orphanPathRegexp)
 		deletePath := fmt.Sprintf(scsiDeviceDeletePath, result["host"], result["channel"], result["target"], result["lun"])
-		if err := deleteSdDevice(deletePath); err != nil {
-			// ignore errors as its a best effort to cleanup all orphan maps
-			klog.Warningf("error while deleting device: %v", err)
-		}
+		wg.Add(1)
+		go func(path string) {
+			defer wg.Done()
+			if err := deleteSdDevice(path); err != nil {
+				// ignore errors as its a best effort to cleanup all orphan maps
+				klog.Warningf("error while deleting device %s: %v", path, err)
+			}
+		}(deletePath)
 	}
+	wg.Wait()
 }

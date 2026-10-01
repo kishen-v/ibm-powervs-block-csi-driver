@@ -31,13 +31,13 @@ import (
 )
 
 var (
-	scanLock = &sync.Mutex{}
+	scanLock          = &sync.Mutex{}
+	majorMinorMatcher = regexp.MustCompile(majorMinorPattern)
 )
 
 type LinuxDevice interface {
-	// GetDevice() bool
-	DeleteDevice() (err error)
-	CreateDevice() (err error)
+	DeleteDevice() error
+	CreateDevice() error
 	GetMapper() string
 	Populate(bool) error
 }
@@ -49,7 +49,6 @@ type Device struct {
 	Slaves int    `json:"slaves,omitempty"`
 }
 
-// NewLinuxDevice new device with given wwn.
 func NewLinuxDevice(wwn string) LinuxDevice {
 	return &Device{
 		WWN: wwn,
@@ -60,28 +59,32 @@ func (d *Device) GetMapper() string {
 	return d.Mapper
 }
 
+func parseWWNFromUUID(uuid string) string {
+	wwid := strings.TrimPrefix(uuid, "mpath-")
+	if len(wwid) > 1 {
+		return wwid[1:]
+	}
+	return ""
+}
+
 // Populate get all linux Devices.
 func (d *Device) Populate(needActivePath bool) error {
 	args := []string{"ls", "--target", "multipath"}
 	outBytes, err := exec.CommandContext(context.Background(), dmsetupcommand, args...).CombinedOutput()
 	out := string(outBytes)
 	if err != nil {
-		return fmt.Errorf("failed to retrieve multipath devices: %s", out)
+		return fmt.Errorf("failed to retrieve multipath devices: %s: %w", out, err)
 	}
 
-	r, err := regexp.Compile(majorMinorPattern)
-	if err != nil {
-		return fmt.Errorf("unable to compile regex with %s", majorMinorPattern)
-	}
-	listOut := r.FindAllString(out, -1)
+	listOut := majorMinorMatcher.FindAllString(out, -1)
 
 	for _, line := range listOut {
-		result := findStringSubmatchMap(line, r)
+		result := findStringSubmatchMap(line, majorMinorMatcher)
 
 		tmpPathname := "dm-" + result["Minor"]
 		uuid, err := getUUID(tmpPathname)
 		if err != nil {
-			klog.Warning(err)
+			klog.Warningf("failed to get uuid for %s: %v", tmpPathname, err)
 			continue
 		}
 		mapName, err := getMpathName(tmpPathname)
@@ -89,20 +92,22 @@ func (d *Device) Populate(needActivePath bool) error {
 			return err
 		}
 
-		tmpWWID := strings.TrimPrefix(uuid, "mpath-")
-		tmpWWN := tmpWWID[1:] // truncate scsi-id prefix
+		tmpWWN := parseWWNFromUUID(uuid)
+		if !strings.EqualFold(d.WWN, tmpWWN) {
+			continue
+		}
 
 		// get the active count; if 0 then cleanup the dm
 		slavesCount, err := getPathsCount(mapName)
 		if err != nil {
-			return fmt.Errorf("unable to count slaves for device %s: %v", d.WWN, err)
+			return fmt.Errorf("unable to count slaves for device %s: %w", d.WWN, err)
 		}
 
 		if slavesCount == 0 {
 			klog.Warningf("cleaning mapper %s as no active disks present", mapName)
 			_ = multipathRemoveDmDevice(mapName)
 			// even if wwn matches but no slaves lets skip
-		} else if strings.EqualFold(d.WWN, tmpWWN) {
+		} else {
 			// if atleast 1 active slave present then use it
 			d.Mapper = "/dev/mapper/" + mapName
 			d.Slaves = slavesCount
@@ -114,7 +119,7 @@ func (d *Device) Populate(needActivePath bool) error {
 }
 
 // DeleteDevice delete the multipath device.
-func (d *Device) DeleteDevice() (err error) {
+func (d *Device) DeleteDevice() error {
 	if err := retryCleanupDevice(d); err != nil {
 		klog.Warningf("error while deleting multipath device %s: %v", d.Mapper, err)
 		return err
@@ -125,9 +130,9 @@ func (d *Device) DeleteDevice() (err error) {
 }
 
 // CreateDevice attach and create linux devices to host.
-func (d *Device) CreateDevice() (err error) {
-	if err = d.createLinuxDevice(); err != nil {
-		klog.Errorf("unable to create device for wwn %s", d.WWN)
+func (d *Device) CreateDevice() error {
+	if err := d.createLinuxDevice(); err != nil {
+		klog.Errorf("unable to create device for wwn %s: %v", d.WWN, err)
 		return err
 	}
 
@@ -142,36 +147,35 @@ func (d *Device) CreateDevice() (err error) {
 // which works in a way that only 1 scan will run at a time
 // and other requests will wait till the scan is complete
 // but will not scan again as it is already scanned.
-func scsiHostRescanWithLock() (err error) {
+func scsiHostRescanWithLock() error {
 	start := time.Now()
-	var scan bool = true
+	scan := true
 
 	for {
 		if scanLock.TryLock() {
-			func() {
-				defer scanLock.Unlock()
-				if scan {
-					// always clean orphan paths before scanning hosts
-					cleanupOrphanPaths()
-					err = scsiHostRescan()
-				}
-			}()
-			return
-		} else {
-			if time.Since(start) > time.Minute {
-				// Scanning usually takes < 30s. If wait is more than a min then return.
-				return
+			var err error
+			if scan {
+				// always clean orphan paths before scanning hosts
+				cleanupOrphanPaths()
+				err = scsiHostRescan()
 			}
-
-			// Already locked, wait for it to complete and don't scan again.
-			scan = false
-			time.Sleep(5 * time.Second)
+			scanLock.Unlock()
+			return err
 		}
+
+		if time.Since(start) > time.Minute {
+			// Scanning usually takes < 30s. If wait is more than a min then return.
+			return fmt.Errorf("timeout waiting for scsi host rescan lock")
+		}
+
+		// Already locked, wait for it to complete and don't scan again.
+		scan = false
+		time.Sleep(2 * time.Second)
 	}
 }
 
 // createLinuxDevice: attaches and creates a new linux device
-// Try device discovery; retry every 5 sec if no device found or have 0 slaves
+// Try device discovery; retry every 2 sec if no device found or have 0 slaves
 // In between checks we will try to cleanup:
 // a. faulty and orphan paths (quick)
 // b. stale paths (time consuming)
@@ -179,17 +183,14 @@ func scsiHostRescanWithLock() (err error) {
 // allowing cleanup process to run for each everytime.
 // For 'a' we will not cleanup if it was already run within last 10 secs.
 // For 'b' we will not cleanup if it was already run within last 25 secs.
-func (d *Device) createLinuxDevice() (err error) {
-	// Start a Countdown ticker
-	for i := 0; i <= 10; i++ {
-		if err = scsiHostRescanWithLock(); err != nil {
+func (d *Device) createLinuxDevice() error {
+	for i := 0; i <= 15; i++ {
+		if err := scsiHostRescanWithLock(); err != nil {
 			return err
 		}
-		// wait for device to appear after rescan
-		time.Sleep(time.Second * 1)
 
-		err := d.Populate(true)
-		if err != nil {
+		// Check immediately for fast-path discovery
+		if err := d.Populate(true); err != nil {
 			return err
 		}
 		if d.Slaves > 0 {
@@ -197,21 +198,26 @@ func (d *Device) createLinuxDevice() (err error) {
 			return nil
 		}
 
-		// some resting time
-		time.Sleep(time.Second * 5)
+		// some resting time before retrying
+		time.Sleep(2 * time.Second)
 	}
 
 	// Reached here signifies the device was not found, throw an error
 	return fmt.Errorf("fc device not found for wwn %s", d.WWN)
 }
 
-// scsiHostRescan: scans all scsi hosts.
+// scsiHostRescan: scans all scsi hosts concurrently.
 func scsiHostRescan() error {
 	scsiPath := "/sys/class/scsi_host"
 	dirs, err := os.ReadDir(scsiPath)
 	if err != nil {
 		return err
 	}
+
+	var wg sync.WaitGroup
+	var scanErr error
+	var errMu sync.Mutex
+
 	for _, f := range dirs {
 		name := f.Name()
 		// Reject any suspicious names
@@ -219,18 +225,27 @@ func scsiHostRescan() error {
 			continue
 		}
 		path := filepath.Join(scsiPath, name, "scan")
-		data := []byte("- - -")
-		if err := os.WriteFile(path, data, 0666); err != nil {
-			return fmt.Errorf("scsi host rescan failed: %v", err)
-		}
+		wg.Add(1)
+		go func(p string) {
+			defer wg.Done()
+			data := []byte("- - -")
+			if err := os.WriteFile(p, data, 0666); err != nil {
+				errMu.Lock()
+				if scanErr == nil {
+					scanErr = fmt.Errorf("scsi host rescan failed: %w", err)
+				}
+				errMu.Unlock()
+			}
+		}(path)
 	}
 
-	return nil
+	wg.Wait()
+	return scanErr
 }
 
-func GetDeviceWWN(pathName string) (wwn string, err error) {
+func GetDeviceWWN(pathName string) (string, error) {
 	if strings.HasPrefix(pathName, "/dev/mapper/") {
-		// get dm path
+		var err error
 		pathName, err = filepath.EvalSymlinks(pathName)
 		if err != nil {
 			return "", err
@@ -239,9 +254,9 @@ func GetDeviceWWN(pathName string) (wwn string, err error) {
 	pathName = strings.TrimPrefix(pathName, "/dev/")
 
 	uuid, err := getUUID(pathName)
+	if err != nil {
+		return "", err
+	}
 
-	tmpWWID := strings.TrimPrefix(uuid, "mpath-")
-	wwn = tmpWWID[1:] // truncate scsi-id prefix
-
-	return wwn, err
+	return parseWWNFromUUID(uuid), nil
 }
