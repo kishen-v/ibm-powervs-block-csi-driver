@@ -20,10 +20,11 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 )
 
-// findStringSubmatchMap: find and build  the map of named groups.
+// findStringSubmatchMap finds and builds a map of named capture groups.
 func findStringSubmatchMap(s string, r *regexp.Regexp) map[string]string {
 	captures := make(map[string]string)
 	match := r.FindStringSubmatch(s)
@@ -31,50 +32,43 @@ func findStringSubmatchMap(s string, r *regexp.Regexp) map[string]string {
 		return captures
 	}
 	for i, name := range r.SubexpNames() {
-		if i != 0 {
+		if i > 0 && name != "" {
 			captures[name] = match[i]
 		}
 	}
 	return captures
 }
 
-// readFirstLine: read the file line no. 1.
+// readFirstLine reads the first line from filePath.
 func readFirstLine(filePath string) (string, error) {
 	file, err := os.Open(filePath)
-	a := ""
 	if err != nil {
 		return "", err
 	}
 	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		a = scanner.Text()
-		break
+	if scanner.Scan() {
+		return scanner.Text(), nil
 	}
-	if err = scanner.Err(); err != nil {
+	if err := scanner.Err(); err != nil {
 		return "", err
 	}
-	return a, err
+	return "", nil
 }
 
 func getMpathName(pathname string) (string, error) {
-	fileName := fmt.Sprintf("/sys/block/%s/dm/name", pathname)
-	return readFirstLine(fileName)
+	return readFirstLine(filepath.Join("/sys/block", pathname, "dm/name"))
 }
 
 func getUUID(pathname string) (string, error) {
-	fileName := fmt.Sprintf("/sys/block/%s/dm/uuid", pathname)
-	return readFirstLine(fileName)
+	return readFirstLine(filepath.Join("/sys/block", pathname, "dm/uuid"))
 }
 
-// deleteSdDevice: delete the scsi device by writing "1".
-func deleteSdDevice(deletePath string) (err error) {
-	// deletePath for deleting the device
-	err = os.WriteFile(deletePath, []byte("1"), 0644)
-	if err != nil {
-		err = fmt.Errorf("error writing to file %s: %v", deletePath, err)
-		return err
+// deleteSdDevice deletes the SCSI device by writing "1" to its delete sysfs path.
+func deleteSdDevice(deletePath string) error {
+	if err := os.WriteFile(deletePath, []byte("1"), 0644); err != nil {
+		return fmt.Errorf("error writing to file %s: %w", deletePath, err)
 	}
 	return nil
 }
